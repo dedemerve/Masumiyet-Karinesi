@@ -1,90 +1,137 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Masumiyet Karinesi — Confusion Matrix</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #111; }
 
-import { useState } from "react";
+    .page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .subtitle { color: #6b7280; font-size: 0.875rem; margin-bottom: 2rem; }
 
-const cell = (bg, border, title, subtitle, detail, highlight) => ({
-  bg, border, title, subtitle, detail, highlight
-});
+    .matrix-wrap { width: 100%; max-width: 640px; }
 
-const cells = {
-  TP: cell(
-    "bg-green-100", "border-green-400",
-    "Doğru Mahkûmiyet",
-    "Gerçekten suçlu → Mahkûm edildi",
-    "Adalet sağlandı. Suçlu cezasını çekiyor.",
-    false
-  ),
-  FP: cell(
-    "bg-red-200", "border-red-600",
-    "Yanlış Mahkûmiyet",
-    "Masum kişi → Mahkûm edildi",
-    "⚠️ MASUMİYET KARİNESİNİN İHLALİ\nDevletin kanıtlama yükümlülüğünü yerine getirememesi. En ağır hata.",
-    true
-  ),
-  FN: cell(
-    "bg-yellow-100", "border-yellow-400",
-    "Yanlış Beraat",
-    "Gerçekten suçlu → Masum sayıldı",
-    "Suçlu beraat etti ve serbest kaldı. Tercih edilen hata türü — sistem bilinçli olarak bunu göze alır.",
-    false
-  ),
-  TN: cell(
-    "bg-green-100", "border-green-400",
-    "Doğru Beraat",
-    "Masum kişi → Masum sayıldı",
-    "Masum kişi beraat etti. Masumiyet karinesi korundu. Sistem doğru çalıştı.",
-    false
-  ),
+    .axis-title { text-align: center; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #2563eb; margin-bottom: 0.25rem; }
+    .col-labels { display: flex; padding-left: 7rem; margin-bottom: 0.5rem; }
+    .col-label { flex: 1; text-align: center; font-size: 0.875rem; font-weight: 700; }
+    .col-label.mahkum { color: #ef4444; }
+    .col-label.masum  { color: #16a34a; }
+
+    .grid-area { display: flex; }
+    .row-axis { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; padding-right: 0.5rem; width: 7rem; }
+    .row-axis-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #2563eb; writing-mode: vertical-rl; transform: rotate(180deg); height: 80px; }
+    .rows { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
+    .row { display: flex; gap: 0.5rem; }
+    .row-label { width: 4rem; display: flex; align-items: center; justify-content: flex-end; padding-right: 0.5rem; font-size: 0.875rem; font-weight: 700; }
+    .row-label.suclu { color: #ef4444; }
+    .row-label.masum-r { color: #16a34a; }
+
+    .cell { flex: 1; border-radius: 0.75rem; border: 2px solid; padding: 1rem; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; min-height: 100px; }
+    .cell:hover { transform: scale(1.04); box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+    .cell.tp { background: #dcfce7; border-color: #4ade80; }
+    .cell.fp { background: #fecaca; border-color: #dc2626; box-shadow: 0 0 0 3px #ef4444; }
+    .cell.fn { background: #fef9c3; border-color: #facc15; }
+    .cell.tn { background: #dcfce7; border-color: #4ade80; }
+
+    .cell-tag { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
+    .tag-tp, .tag-tn { color: #166534; }
+    .tag-fp { color: #991b1b; }
+    .tag-fn { color: #854d0e; }
+
+    .cell-title { font-size: 0.875rem; font-weight: 600; color: #1f2937; line-height: 1.3; }
+    .cell-sub   { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+
+    .detail-box { margin-top: 1.5rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem; min-height: 5rem; }
+    .detail-title { font-size: 0.875rem; font-weight: 700; color: #111; margin-bottom: 0.25rem; }
+    .detail-text  { font-size: 0.75rem; color: #4b5563; white-space: pre-line; }
+    .detail-placeholder { font-size: 0.75rem; color: #9ca3af; }
+
+    .legend { margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; width: 100%; }
+    .legend-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.75rem; font-size: 0.75rem; color: #6b7280; }
+    .legend-item.full { grid-column: span 2; text-align: center; }
+    .leg-fp { color: #ef4444; font-weight: 700; }
+    .leg-fn { color: #ca8a04; font-weight: 700; }
+    .leg-em { color: #111; font-weight: 600; }
+    .leg-blue { color: #2563eb; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const CELLS = {
+  TP: {
+    cls: "tp", tag: "TP", tagCls: "tag-tp",
+    title: "Doğru Mahkûmiyet",
+    sub: "Gerçekten suçlu → Mahkûm edildi",
+    detail: "Adalet sağlandı. Suçlu cezasını çekiyor."
+  },
+  FP: {
+    cls: "fp", tag: "FP ⚠️", tagCls: "tag-fp",
+    title: "Yanlış Mahkûmiyet",
+    sub: "Masum kişi → Mahkûm edildi",
+    detail: "⚠️ MASUMİYET KARİNESİNİN İHLALİ\nDevletin kanıtlama yükümlülüğünü yerine getirememesi. En ağır hata."
+  },
+  FN: {
+    cls: "fn", tag: "FN", tagCls: "tag-fn",
+    title: "Yanlış Beraat",
+    sub: "Gerçekten suçlu → Masum sayıldı",
+    detail: "Suçlu beraat etti ve serbest kaldı. Tercih edilen hata türü — sistem bilinçli olarak bunu göze alır."
+  },
+  TN: {
+    cls: "tn", tag: "TN", tagCls: "tag-tn",
+    title: "Doğru Beraat",
+    sub: "Masum kişi → Masum sayıldı",
+    detail: "Masum kişi beraat etti. Masumiyet karinesi korundu. Sistem doğru çalıştı."
+  },
 };
 
-export default function App() {
-  const [hovered, setHovered] = useState(null);
+function App() {
+  const [hovered, setHovered] = React.useState(null);
+
+  const rows = [
+    { label: "Suçlu", labelCls: "suclu",   keys: ["TP", "FN"] },
+    { label: "Masum", labelCls: "masum-r",  keys: ["FP", "TN"] },
+  ];
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex flex-col items-center justify-center p-6 font-sans">
-      <h1 className="text-2xl font-bold mb-1 tracking-tight text-gray-900">Masumiyet Karinesi</h1>
-      <p className="text-gray-500 text-sm mb-8">
-        <span className="italic">"Şüpheden sanık yararlanır"</span> — Confusion Matrix ile
-      </p>
+    <div className="page">
+      <h1>Masumiyet Karinesi</h1>
+      <p className="subtitle"><em>"Şüpheden sanık yararlanır"</em> — Confusion Matrix ile</p>
 
-      <div className="flex flex-col items-center w-full max-w-2xl">
-
-        <div className="flex w-full mb-1 pl-28">
-          <div className="flex-1 text-center text-xs font-semibold text-blue-600 uppercase tracking-widest">Mahkeme Kararı</div>
-        </div>
-        <div className="flex w-full mb-2 pl-28">
-          <div className="flex-1 text-center text-sm font-bold text-red-500">Mahkûm</div>
-          <div className="flex-1 text-center text-sm font-bold text-green-600">Masum</div>
+      <div className="matrix-wrap">
+        <div className="axis-title">Mahkeme Kararı</div>
+        <div className="col-labels">
+          <div className="col-label mahkum">Mahkûm</div>
+          <div className="col-label masum">Masum</div>
         </div>
 
-        <div className="flex w-full gap-0">
-          <div className="flex flex-col justify-center items-end pr-3 w-28 gap-2">
-            <div className="flex flex-col items-center">
-              <span className="text-xs font-semibold text-blue-600 uppercase tracking-widest" style={{writingMode:'vertical-rl', transform:'rotate(180deg)', height: 90}}>Gerçek Durum</span>
-            </div>
+        <div className="grid-area">
+          <div className="row-axis">
+            <span className="row-axis-label">Gerçek Durum</span>
           </div>
-
-          <div className="flex flex-col gap-2 flex-1">
-            {[
-              { label: "Suçlu", labelColor: "text-red-500", keys: ["TP", "FN"] },
-              { label: "Masum", labelColor: "text-green-600", keys: ["FP", "TN"] },
-            ].map(({ label, labelColor, keys }) => (
-              <div key={label} className="flex gap-2">
-                <div className={`w-16 flex items-center justify-end pr-2 text-sm font-bold ${labelColor}`}>{label}</div>
-                {keys.map((k) => {
-                  const c = cells[k];
+          <div className="rows">
+            {rows.map(({ label, labelCls, keys }) => (
+              <div className="row" key={label}>
+                <div className={`row-label ${labelCls}`}>{label}</div>
+                {keys.map(k => {
+                  const c = CELLS[k];
                   return (
                     <div
                       key={k}
+                      className={`cell ${c.cls}`}
                       onMouseEnter={() => setHovered(k)}
                       onMouseLeave={() => setHovered(null)}
-                      className={`flex-1 rounded-xl border-2 ${c.bg} ${c.border} p-4 cursor-pointer transition-all duration-200 ${hovered === k ? "scale-105 shadow-lg" : ""} ${c.highlight ? "ring-4 ring-red-500 ring-offset-2 ring-offset-white" : ""}`}
-                      style={{ minHeight: 100 }}
                     >
-                      <div className={`text-xs font-bold uppercase tracking-wide mb-1 ${k === "FP" ? "text-red-700" : k === "TP" || k === "TN" ? "text-green-800" : "text-yellow-700"}`}>
-                        {k === "TP" ? "TP" : k === "FP" ? "FP ⚠️" : k === "FN" ? "FN" : "TN"}
-                      </div>
-                      <div className="text-gray-800 font-semibold text-sm leading-tight">{c.title}</div>
-                      <div className="text-gray-500 text-xs mt-1">{c.subtitle}</div>
+                      <div className={`cell-tag ${c.tagCls}`}>{c.tag}</div>
+                      <div className="cell-title">{c.title}</div>
+                      <div className="cell-sub">{c.sub}</div>
                     </div>
                   );
                 })}
@@ -93,32 +140,38 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mt-6 w-full rounded-xl bg-gray-100 border border-gray-200 p-5 min-h-20 transition-all duration-200">
+        <div className="detail-box">
           {hovered ? (
             <>
-              <div className="text-sm font-bold text-gray-900 mb-1">{cells[hovered].title}</div>
-              <div className="text-xs text-gray-600 whitespace-pre-line">{cells[hovered].detail}</div>
+              <div className="detail-title">{CELLS[hovered].title}</div>
+              <div className="detail-text">{CELLS[hovered].detail}</div>
             </>
           ) : (
-            <p className="text-gray-400 text-xs">Bir hücrenin üzerine gelin, açıklamasını görün.</p>
+            <span className="detail-placeholder">Bir hücrenin üzerine gelin, açıklamasını görün.</span>
           )}
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 w-full text-xs text-gray-500">
-          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-            <span className="text-red-500 font-bold">FP (False Positive)</span> — Tip I Hata<br/>
-            Masum birini mahkûm etmek. Hukuk bu hatayı <span className="text-gray-900 font-semibold">en ağır</span> kabul eder.
+        <div className="legend">
+          <div className="legend-item">
+            <span className="leg-fp">FP (False Positive)</span> — Tip I Hata<br/>
+            Masum birini mahkûm etmek. Hukuk bu hatayı <span className="leg-em">en ağır</span> kabul eder.
           </div>
-          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-            <span className="text-yellow-600 font-bold">FN (False Negative)</span> — Tip II Hata<br/>
-            Suçluyu beraat ettirmek. Sistem bunu <span className="text-gray-900 font-semibold">bilinçli tolere</span> eder.
+          <div className="legend-item">
+            <span className="leg-fn">FN (False Negative)</span> — Tip II Hata<br/>
+            Suçluyu beraat ettirmek. Sistem bunu <span className="leg-em">bilinçli tolere</span> eder.
           </div>
-          <div className="col-span-2 bg-gray-50 rounded-lg p-3 border border-gray-200 text-center">
-            <span className="text-blue-600 font-semibold">"10 suçlu beraat etsin, 1 masum mahkûm edilmesin."</span>
-            <span className="text-gray-400"> — Blackstone's Ratio</span>
+          <div className="legend-item full">
+            <span className="leg-blue">"10 suçlu beraat etsin, 1 masum mahkûm edilmesin."</span>
+            <span style={{color:'#9ca3af'}}> — Blackstone's Ratio</span>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
